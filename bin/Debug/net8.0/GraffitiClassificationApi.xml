@@ -1,0 +1,147 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>GraffitiClassificationApi</name>
+    </assembly>
+    <members>
+        <member name="T:GraffitiClassificationApi.Api.Controllers.GangsController">
+            <summary>Criminal gang management.</summary>
+        </member>
+        <member name="M:GraffitiClassificationApi.Api.Controllers.GangsController.GetAll">
+            <summary>Returns all registered gangs.</summary>
+            <response code="200">List of gangs.</response>
+        </member>
+        <member name="M:GraffitiClassificationApi.Api.Controllers.GangsController.GetById(System.Int32)">
+            <summary>Returns a gang by Id.</summary>
+            <param name="id">Gang Id.</param>
+            <response code="200">Gang found.</response>
+            <response code="404">Gang not found.</response>
+        </member>
+        <member name="M:GraffitiClassificationApi.Api.Controllers.GangsController.Create(GraffitiClassificationApi.Api.Models.Gang)">
+            <summary>Creates a new gang.</summary>
+            <response code="201">Gang created successfully.</response>
+            <response code="400">Invalid data.</response>
+        </member>
+        <member name="M:GraffitiClassificationApi.Api.Controllers.GangsController.Update(System.Int32,GraffitiClassificationApi.Api.Models.Gang)">
+            <summary>Updates an existing gang.</summary>
+            <param name="id">Gang Id to update.</param>
+            <response code="200">Gang updated.</response>
+            <response code="400">Inconsistent Id or invalid data.</response>
+            <response code="404">Gang not found.</response>
+        </member>
+        <member name="M:GraffitiClassificationApi.Api.Controllers.GangsController.Delete(System.Int32)">
+            <summary>Deletes a gang. Blocked if it has linked graffiti records.</summary>
+            <param name="id">Gang Id to delete.</param>
+            <response code="204">Gang deleted successfully.</response>
+            <response code="404">Gang not found.</response>
+            <response code="409">Gang has linked graffiti records.</response>
+        </member>
+        <member name="T:GraffitiClassificationApi.Api.Controllers.GraffitisController">
+            <summary>Graffiti record management.</summary>
+        </member>
+        <member name="M:GraffitiClassificationApi.Api.Controllers.GraffitisController.GetAll">
+            <summary>Returns all graffiti records with gang and location included.</summary>
+            <response code="200">List of graffiti records.</response>
+        </member>
+        <member name="M:GraffitiClassificationApi.Api.Controllers.GraffitisController.GetById(System.Int32)">
+            <summary>Returns a graffiti record by Id with gang and location included.</summary>
+            <param name="id">Graffiti record Id.</param>
+            <response code="200">Record found.</response>
+            <response code="404">Record not found.</response>
+        </member>
+        <member name="M:GraffitiClassificationApi.Api.Controllers.GraffitisController.Create(GraffitiClassificationApi.Api.DTOs.GraffitiCreateDto)">
+            <summary>
+            Creates a new graffiti record via multipart/form-data.
+            Send location fields in the form and optionally an image file.
+            </summary>
+            <response code="201">Record created successfully.</response>
+            <response code="400">Invalid data or gang not found.</response>
+        </member>
+        <member name="M:GraffitiClassificationApi.Api.Controllers.GraffitisController.Update(System.Int32,GraffitiClassificationApi.Api.Models.Graffiti)">
+            <summary>Updates an existing graffiti record (does not update location).</summary>
+            <param name="id">Graffiti record Id to update.</param>
+            <response code="200">Record updated.</response>
+            <response code="400">Inconsistent Id, invalid data, or gang not found.</response>
+            <response code="404">Record not found.</response>
+        </member>
+        <member name="M:GraffitiClassificationApi.Api.Controllers.GraffitisController.Delete(System.Int32)">
+            <summary>Deletes a graffiti record and its associated location.</summary>
+            <param name="id">Graffiti record Id to delete.</param>
+            <response code="204">Record deleted successfully.</response>
+            <response code="404">Record not found.</response>
+        </member>
+        <member name="T:GraffitiClassificationApi.Api.DTOs.GraffitiCreateDto">
+            <summary>
+            DTO for creating a Graffiti record via multipart/form-data.
+            Used instead of the entity directly to support file upload (IFormFile).
+            </summary>
+        </member>
+        <member name="P:GraffitiClassificationApi.Api.DTOs.GraffitiCreateDto.ThreatLevel">
+            <summary>Expected values: Low, Medium, High</summary>
+        </member>
+        <member name="T:GraffitiClassificationApi.Api.DTOs.LocationResponseDto">
+            <summary>
+            Flat response DTO for GraffitiLocation.
+            Has no back-reference to Graffiti, making circular references impossible.
+            </summary>
+        </member>
+        <member name="T:GraffitiClassificationApi.Api.DTOs.GraffitiResponseDto">
+            <summary>
+            Flat response DTO for Graffiti.
+            Contains gang data (Name and Acronym only) and location data
+            without any inverse navigation properties — circular reference impossible.
+            </summary>
+        </member>
+        <member name="P:GraffitiClassificationApi.Api.Models.Graffiti.ThreatLevel">
+            <summary>Expected values: Low, Medium, High</summary>
+        </member>
+        <member name="T:GraffitiClassificationApi.Migrations.CriacaoInicial">
+            <inheritdoc />
+        </member>
+        <member name="M:GraffitiClassificationApi.Migrations.CriacaoInicial.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:GraffitiClassificationApi.Migrations.CriacaoInicial.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:GraffitiClassificationApi.Migrations.CriacaoInicial.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:GraffitiClassificationApi.Migrations.CaminhoImagem">
+            <inheritdoc />
+        </member>
+        <member name="M:GraffitiClassificationApi.Migrations.CaminhoImagem.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:GraffitiClassificationApi.Migrations.CaminhoImagem.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:GraffitiClassificationApi.Migrations.CaminhoImagem.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:GraffitiClassificationApi.Migrations.RenameTablesAndCollunsToSnakeCase">
+            <inheritdoc />
+        </member>
+        <member name="M:GraffitiClassificationApi.Migrations.RenameTablesAndCollunsToSnakeCase.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:GraffitiClassificationApi.Migrations.RenameTablesAndCollunsToSnakeCase.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:GraffitiClassificationApi.Migrations.RenameTablesAndCollunsToSnakeCase.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:GraffitiClassificationApi.Migrations.RenameModelsToEnglish">
+            <inheritdoc />
+        </member>
+        <member name="M:GraffitiClassificationApi.Migrations.RenameModelsToEnglish.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:GraffitiClassificationApi.Migrations.RenameModelsToEnglish.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:GraffitiClassificationApi.Migrations.RenameModelsToEnglish.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+    </members>
+</doc>
