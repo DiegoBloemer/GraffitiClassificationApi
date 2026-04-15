@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="..\build\GraffitiClassificationApi.props" />
-</Project>
