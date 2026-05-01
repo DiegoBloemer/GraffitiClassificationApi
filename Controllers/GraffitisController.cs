@@ -149,8 +149,9 @@ public class GraffitisController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = graffiti.Id }, ToDto(graffiti));
     }
 
-    /// <summary>Updates an existing graffiti record (does not update location).</summary>
+    /// <summary>Updates an existing graffiti record including location.</summary>
     /// <param name="id">Graffiti record Id to update.</param>
+    /// <param name="dto">Updated data including location fields.</param>
     /// <response code="200">Record updated.</response>
     /// <response code="400">Inconsistent Id, invalid data, or gang not found.</response>
     /// <response code="404">Record not found.</response>
@@ -158,29 +159,62 @@ public class GraffitisController : ControllerBase
     [ProducesResponseType(typeof(GraffitiResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Update(int id, [FromBody] Graffiti updated)
+    public async Task<IActionResult> Update(int id, [FromBody] GraffitiUpdateDto dto)
     {
-        if (id != updated.Id)
+        if (id != dto.Id)
             return BadRequest(new { message = "The URL Id does not match the request body Id." });
 
-        var existing = await _context.Graffitis.FindAsync(id);
+        if (!ModelState.IsValid)
+            return BadRequest(new { message = "Invalid data.", errors = ModelState });
+
+        // Load existing graffiti with location
+        var existing = await _context.Graffitis
+            .Include(g => g.Location)
+            .FirstOrDefaultAsync(g => g.Id == id);
+
         if (existing is null)
             return NotFound(new { message = $"Graffiti record with Id {id} not found." });
 
-        bool gangExists = await _context.Gangs.AnyAsync(g => g.Id == updated.GangId);
+        // Validate gang exists
+        bool gangExists = await _context.Gangs.AnyAsync(g => g.Id == dto.GangId);
         if (!gangExists)
-            return BadRequest(new { message = $"Gang with Id {updated.GangId} not found." });
+            return BadRequest(new { message = $"Gang with Id {dto.GangId} not found." });
 
-        existing.VisualDescription = updated.VisualDescription;
-        existing.ThreatLevel       = updated.ThreatLevel;
-        existing.GangId            = updated.GangId;
-        existing.RegisteredAt      = updated.RegisteredAt;
+        // Update Graffiti fields
+        existing.VisualDescription = dto.VisualDescription;
+        existing.ThreatLevel       = dto.ThreatLevel;
+        existing.GangId            = dto.GangId;
+        existing.RegisteredAt      = dto.RegisteredAt;
+
+        // Update Location fields
+        if (existing.Location is not null)
+        {
+            existing.Location.Street       = dto.Street;
+            existing.Location.Neighborhood = dto.Neighborhood;
+            existing.Location.City         = dto.City;
+            existing.Location.State        = dto.State;
+            existing.Location.Lat          = dto.Lat;
+            existing.Location.Lon          = dto.Lon;
+        }
+        else
+        {
+            // If location doesn't exist (shouldn't happen), create it
+            existing.Location = new GraffitiLocation
+            {
+                Street       = dto.Street,
+                Neighborhood = dto.Neighborhood,
+                City         = dto.City,
+                State        = dto.State,
+                Lat          = dto.Lat,
+                Lon          = dto.Lon,
+                GraffitiId   = existing.Id
+            };
+        }
 
         await _context.SaveChangesAsync();
 
-        // Reload related entities to build the full response DTO
+        // Reload Gang for response
         await _context.Entry(existing).Reference(g => g.Gang).LoadAsync();
-        await _context.Entry(existing).Reference(g => g.Location).LoadAsync();
 
         return Ok(ToDto(existing));
     }
