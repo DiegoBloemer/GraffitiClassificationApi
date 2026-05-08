@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using GraffitiClassificationApi.Api.Data;
+using GraffitiClassificationApi.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +13,9 @@ builder.Services.AddControllers();
 // lendo a connection string "DefaultConnection" do appsettings.json
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Registra o serviço de armazenamento MinIO
+builder.Services.AddSingleton<IStorageService, MinioStorageService>();
 
 // Configura o Swagger para documentação automática da API
 builder.Services.AddEndpointsApiExplorer();
@@ -41,6 +45,13 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Garante que o bucket do MinIO existe
+using (var scope = app.Services.CreateScope())
+{
+    var storageService = scope.ServiceProvider.GetRequiredService<IStorageService>();
+    await storageService.EnsureBucketExistsAsync();
+}
+
 // --- Pipeline de requisições ---
 
 if (app.Environment.IsDevelopment())
@@ -52,7 +63,7 @@ if (app.Environment.IsDevelopment())
 app.UseCors("PermitirTudo");
 
 // Habilita o serviço de arquivos estáticos a partir de wwwroot/
-// Necessário para que as imagens salvas em wwwroot/imagens sejam acessíveis via URL
+// Mantido para compatibilidade com imagens antigas
 app.UseStaticFiles();
 
 app.UseAuthorization();

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using GraffitiClassificationApi.Api.Data;
 using GraffitiClassificationApi.Api.DTOs;
 using GraffitiClassificationApi.Api.Models;
+using GraffitiClassificationApi.Api.Services;
 
 namespace GraffitiClassificationApi.Api.Controllers;
 
@@ -13,10 +14,12 @@ namespace GraffitiClassificationApi.Api.Controllers;
 public class GraffitisController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IStorageService _storageService;
 
-    public GraffitisController(AppDbContext context)
+    public GraffitisController(AppDbContext context, IStorageService storageService)
     {
         _context = context;
+        _storageService = storageService;
     }
 
     // Maps a Graffiti entity to a flat response DTO, breaking any circular reference.
@@ -99,28 +102,8 @@ public class GraffitisController : ControllerBase
 
         if (dto.Image is not null)
         {
-            // Build the absolute physical path to the destination folder inside wwwroot
-            var destFolder = Path.Combine(
-                Directory.GetCurrentDirectory(), "wwwroot", "images", "occurrences");
-
-            // Create the full directory hierarchy if it does not exist
-            Directory.CreateDirectory(destFolder);
-
-            // Preserve the original file extension (e.g. .jpg, .png)
-            var extension = Path.GetExtension(dto.Image.FileName);
-
-            // Generate a unique file name to avoid collisions
-            var fileName    = $"{Guid.NewGuid()}{extension}";
-            var physicalPath = Path.Combine(destFolder, fileName);
-
-            // Copy the IFormFile content to disk using a FileStream
-            using (var stream = new FileStream(physicalPath, FileMode.Create))
-            {
-                await dto.Image.CopyToAsync(stream);
-            }
-
-            // Relative path saved in the database and used by the front-end
-            imagePath = $"/images/occurrences/{fileName}";
+            // Upload para MinIO
+            imagePath = await _storageService.UploadFileAsync(dto.Image, "occurrences");
         }
 
         var graffiti = new Graffiti
@@ -234,6 +217,12 @@ public class GraffitisController : ControllerBase
 
         if (graffiti is null)
             return NotFound(new { message = $"Graffiti record with Id {id} not found." });
+
+        // Excluir imagem do MinIO se existir
+        if (!string.IsNullOrEmpty(graffiti.ImagePath))
+        {
+            await _storageService.DeleteFileAsync(graffiti.ImagePath);
+        }
 
         // Removing the record also removes the dependent Location (EF Core cascade)
         _context.Graffitis.Remove(graffiti);

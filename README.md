@@ -39,12 +39,13 @@ Sistema backend desenvolvido em .NET 8 para gerenciamento de ocorrências de pic
 
 ### Gestão de Pichações
 - ✅ CRUD completo de pichações
-- ✅ Upload de imagens (JPEG, PNG, WebP)
+- ✅ Upload de imagens para MinIO (JPEG, PNG, WebP)
 - ✅ Classificação por nível de ameaça (Low, Medium, High)
 - ✅ Registro de localização geográfica (endereço + coordenadas)
 - ✅ Vinculação obrigatória a facção
 - ✅ Data de registro automática (UTC)
 - ✅ Exclusão em cascata de localização
+- ✅ Exclusão automática de imagem do MinIO
 
 ### Dashboard e Estatísticas
 - ✅ Resumo geral do sistema (totais e nível predominante)
@@ -58,11 +59,13 @@ Sistema backend desenvolvido em .NET 8 para gerenciamento de ocorrências de pic
 - ✅ API REST com padrões HTTP semânticos
 - ✅ Documentação automática via Swagger/OpenAPI
 - ✅ Upload de arquivos via multipart/form-data
+- ✅ Object Storage com MinIO (compatível com S3)
 - ✅ DTOs para evitar referências circulares
 - ✅ Eager loading de relacionamentos
 - ✅ Validação de modelo com Data Annotations
 - ✅ CORS configurado para desenvolvimento
-- ✅ Arquivos estáticos servidos via wwwroot
+- ✅ Service Layer para lógica de negócio
+- ✅ Dependency Injection nativa do .NET
 
 ## 🚀 Tecnologias
 
@@ -76,12 +79,16 @@ Sistema backend desenvolvido em .NET 8 para gerenciamento de ocorrências de pic
 - **Entity Framework Core 8.0** - ORM
 - **Npgsql 8.0** - Provider PostgreSQL
 
+### Armazenamento
+- **MinIO** - Object Storage (compatível com S3)
+- **Minio SDK 6.0.3** - Cliente .NET para MinIO
+
 ### Documentação
 - **Swagger/OpenAPI** - Documentação interativa
 - **XML Comments** - Documentação de código
 
 ### Ferramentas
-- **Docker** - Containerização do PostgreSQL
+- **Docker** - Containerização (PostgreSQL, pgAdmin, MinIO)
 - **EF Core Migrations** - Versionamento do banco
 
 ## 🏗️ Arquitetura
@@ -102,16 +109,18 @@ GraffitiClassificationApi/
 │   ├── DashboardSummaryDto.cs # DTO para resumo
 │   ├── ChartDataDto.cs      # DTO para gráficos simples
 │   └── StackedChartDataDto.cs # DTO para gráfico empilhado
+├── Services/                 # Camada de Serviços
+│   ├── IStorageService.cs   # Interface de armazenamento
+│   └── MinioStorageService.cs # Implementação MinIO
 ├── Data/                     # Camada de Dados
 │   └── AppDbContext.cs      # Contexto EF Core
 ├── Migrations/               # Migrations do banco
-├── wwwroot/                  # Arquivos estáticos
-│   └── images/occurrences/  # Imagens das pichações
 └── Program.cs                # Configuração da aplicação
 ```
 
 ### Padrões Utilizados
 - **Repository Pattern** (via EF Core)
+- **Service Layer Pattern** (IStorageService)
 - **DTO Pattern** (separação de concerns)
 - **Dependency Injection** (injeção nativa do .NET)
 - **Async/Await** (operações assíncronas)
@@ -136,7 +145,7 @@ cd ProjetoFinal/GraffitiClassificationApi
 
 **Opção A: Docker (Recomendado)**
 ```bash
-# Na raiz do projeto
+# Sobe PostgreSQL, pgAdmin e MinIO
 docker-compose up -d
 ```
 
@@ -146,6 +155,7 @@ docker-compose up -d
 createdb grafiti_classification_db
 
 # Atualize a connection string em appsettings.json
+# Instale MinIO separadamente ou use Docker apenas para MinIO
 ```
 
 3. **Restaure as dependências**
@@ -166,6 +176,8 @@ dotnet run
 A API estará disponível em:
 - **API**: http://localhost:5219
 - **Swagger**: http://localhost:5219/swagger
+- **MinIO Console**: http://localhost:9001 (minioadmin / minioadmin123)
+- **pgAdmin**: http://localhost:8080 (admin@admin.com / admin123)
 
 ## 🎮 Uso
 
@@ -265,7 +277,7 @@ curl -X POST "http://localhost:5219/api/graffitis" \
   "visualDescription": "Pichação com símbolo da facção",
   "threatLevel": "High",
   "gangId": 1,
-  "imagePath": "/images/occurrences/abc123.jpg"
+  "imagePath": "http://localhost:9000/graffiti-images/occurrences/abc123.jpg"
 }
 ```
 
@@ -325,6 +337,13 @@ dotnet ef migrations remove
   "ConnectionStrings": {
     "DefaultConnection": "Host=localhost;Port=5432;Database=grafiti_classification_db;Username=postgres;Password=postgres123"
   },
+  "MinIO": {
+    "Endpoint": "localhost:9000",
+    "AccessKey": "minioadmin",
+    "SecretKey": "minioadmin123",
+    "BucketName": "graffiti-images",
+    "UseSSL": false
+  },
   "Logging": {
     "LogLevel": {
       "Default": "Information",
@@ -332,6 +351,17 @@ dotnet ef migrations remove
     }
   }
 }
+```
+
+### docker-compose.yml
+
+O projeto inclui um `docker-compose.yml` que sobe:
+- **PostgreSQL 16** (porta 5432)
+- **pgAdmin** (porta 8080)
+- **MinIO** (portas 9000 e 9001)
+
+```bash
+docker-compose up -d
 ```
 
 ### CORS
@@ -361,12 +391,6 @@ builder.Services.AddCors(options =>
 ### Testar com cURL
 Veja exemplos na seção [Uso](#-uso).
 
-### Testar com Postman
-Importe a collection do Swagger:
-1. Acesse `/swagger/v1/swagger.json`
-2. Importe no Postman
-3. Configure a base URL
-
 ## 🛡️ Segurança
 
 ### Implementado
@@ -391,12 +415,15 @@ Importe a collection do Swagger:
 - DTOs para reduzir payload
 - Connection pooling (Npgsql)
 - Índice único em FK 1:1
+- Object Storage (MinIO) para imagens
+- Acesso direto via HTTP (sem middleware .NET)
 
 ### Melhorias Futuras
 - Paginação em listagens
 - Cache com Redis
-- CDN para imagens
-- Compressão de resposta
+- CDN para imagens (integração MinIO + CloudFront)
+- Compressão de resposta (Gzip/Brotli)
+- Thumbnails automáticos
 
 ## 🤝 Contribuindo
 
@@ -426,26 +453,41 @@ docker ps  # Se usando Docker
 psql -h localhost -U postgres -d grafiti_classification_db
 ```
 
+### Erro: "Failed to connect to MinIO"
+```bash
+# Verifique se MinIO está rodando
+docker ps | findstr minio
+
+# Ver logs
+docker logs minio-graffiti-storage
+
+# Reiniciar
+docker-compose restart minio
+```
+
 ### Erro: "Pending migrations"
 ```bash
 dotnet ef database update
 ```
 
-### Erro: "Port 5219 already in use"
+### Erro: "Port already in use"
 ```bash
 # Altere a porta em Properties/launchSettings.json
 # Ou mate o processo usando a porta
+# Ou pare containers antigos: docker stop $(docker ps -aq)
 ```
 
 ## 📊 Estatísticas do Projeto
 
-- **Linhas de Código**: ~1.500
+- **Linhas de Código**: ~1.800
 - **Controllers**: 3
 - **Endpoints**: 14
 - **Modelos**: 3
 - **DTOs**: 6
+- **Services**: 2 (Interface + Implementação)
 - **Migrations**: 4
-- **Dependências**: 4
+- **Dependências**: 5
+- **Containers Docker**: 3 (PostgreSQL, pgAdmin, MinIO)
 
 ## 📄 Licença
 
@@ -460,7 +502,7 @@ Desenvolvimento Web - 2026
 ## 🙏 Agradecimentos
 
 - UFSC - Universidade Federal de Santa Catarina
-- Professores Matheus Venos da Silva Cataneo
+- Professor: Matheus Venos da Silva Cataneo
 - Comunidade .NET
 
 ## 🔗 Links Úteis
@@ -470,17 +512,18 @@ Desenvolvimento Web - 2026
 - [PostgreSQL](https://www.postgresql.org/docs)
 - [Swagger](https://swagger.io/docs)
 - [ASP.NET Core](https://docs.microsoft.com/aspnet/core)
+- [MinIO Documentation](https://min.io/docs/minio/linux/index.html)
+- [MinIO .NET SDK](https://github.com/minio/minio-dotnet)
 
 ## 📞 Suporte
 
 Para dúvidas e suporte:
-1. Consulte a [documentação completa](ARQUITETURA_BACKEND.md)
-2. Verifique o Swagger em `/swagger`
-3. Abra uma issue no repositório
+1. Verifique o Swagger em `/swagger`
+2. Abra uma issue no repositório
 
 ---
 
-**Desenvolvido com usando .NET 8, Entity Framework Core e PostgreSQL**
+**Desenvolvido com usando .NET 8, Entity Framework Core, PostgreSQL e MinIO**
 
 **Status**: Em desenvolvimento
 
