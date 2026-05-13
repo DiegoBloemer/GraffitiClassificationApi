@@ -62,10 +62,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("PermitirTudo");
 
-// Habilita o serviço de arquivos estáticos a partir de wwwroot/
-// Mantido para compatibilidade com imagens antigas
-app.UseStaticFiles();
-
 app.UseAuthorization();
 
 // Mapeia as rotas para os controllers
