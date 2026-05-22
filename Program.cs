@@ -30,13 +30,19 @@ builder.Services.AddSwaggerGen(options =>
     options.IncludeXmlComments(xmlPath);
 });
 
-// Política de CORS "PermitirTudo": libera qualquer origem, método e cabeçalho
+// Política de CORS: em Development libera qualquer origem; em outros ambientes
+// lê "AllowedOrigins" do appsettings (array de strings).
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("PermitirTudo", policy =>
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader());
+    {
+        var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>();
+
+        if (builder.Environment.IsDevelopment() || allowedOrigins is null || allowedOrigins.Length == 0)
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+        else
+            policy.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader();
+    });
 });
 
 var app = builder.Build();

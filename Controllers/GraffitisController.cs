@@ -19,6 +19,11 @@ public class GraffitisController : ControllerBase
         _context = context;
     }
 
+    private static readonly HashSet<string> _allowedImageExtensions =
+        new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+
+    private const long MaxImageSizeBytes = 10 * 1024 * 1024; // 10 MB
+
     // Maps a Graffiti entity to a flat response DTO, breaking any circular reference.
     private static GraffitiResponseDto ToDto(Graffiti g) => new()
     {
@@ -99,6 +104,14 @@ public class GraffitisController : ControllerBase
 
         if (dto.Image is not null)
         {
+            var extension = Path.GetExtension(dto.Image.FileName);
+
+            if (!_allowedImageExtensions.Contains(extension))
+                return BadRequest(new { message = $"Image extension '{extension}' is not allowed. Allowed: {string.Join(", ", _allowedImageExtensions)}." });
+
+            if (dto.Image.Length > MaxImageSizeBytes)
+                return BadRequest(new { message = $"Image exceeds the maximum allowed size of {MaxImageSizeBytes / (1024 * 1024)} MB." });
+
             // Build the absolute physical path to the destination folder inside wwwroot
             var destFolder = Path.Combine(
                 Directory.GetCurrentDirectory(), "wwwroot", "images", "occurrences");
@@ -106,11 +119,8 @@ public class GraffitisController : ControllerBase
             // Create the full directory hierarchy if it does not exist
             Directory.CreateDirectory(destFolder);
 
-            // Preserve the original file extension (e.g. .jpg, .png)
-            var extension = Path.GetExtension(dto.Image.FileName);
-
             // Generate a unique file name to avoid collisions
-            var fileName    = $"{Guid.NewGuid()}{extension}";
+            var fileName = $"{Guid.NewGuid()}{extension}";
             var physicalPath = Path.Combine(destFolder, fileName);
 
             // Copy the IFormFile content to disk using a FileStream
@@ -149,7 +159,7 @@ public class GraffitisController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = graffiti.Id }, ToDto(graffiti));
     }
 
-    /// <summary>Updates an existing graffiti record (does not update location).</summary>
+    /// <summary>Updates an existing graffiti record (does not update location or registered date).</summary>
     /// <param name="id">Graffiti record Id to update.</param>
     /// <response code="200">Record updated.</response>
     /// <response code="400">Inconsistent Id, invalid data, or gang not found.</response>
@@ -158,23 +168,25 @@ public class GraffitisController : ControllerBase
     [ProducesResponseType(typeof(GraffitiResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Update(int id, [FromBody] Graffiti updated)
+    public async Task<IActionResult> Update(int id, [FromBody] GraffitiUpdateDto dto)
     {
-        if (id != updated.Id)
+        if (!ModelState.IsValid)
+            return BadRequest(new { message = "Invalid data.", errors = ModelState });
+
+        if (id != dto.Id)
             return BadRequest(new { message = "The URL Id does not match the request body Id." });
 
         var existing = await _context.Graffitis.FindAsync(id);
         if (existing is null)
             return NotFound(new { message = $"Graffiti record with Id {id} not found." });
 
-        bool gangExists = await _context.Gangs.AnyAsync(g => g.Id == updated.GangId);
+        bool gangExists = await _context.Gangs.AnyAsync(g => g.Id == dto.GangId);
         if (!gangExists)
-            return BadRequest(new { message = $"Gang with Id {updated.GangId} not found." });
+            return BadRequest(new { message = $"Gang with Id {dto.GangId} not found." });
 
-        existing.VisualDescription = updated.VisualDescription;
-        existing.ThreatLevel       = updated.ThreatLevel;
-        existing.GangId            = updated.GangId;
-        existing.RegisteredAt      = updated.RegisteredAt;
+        existing.VisualDescription = dto.VisualDescription;
+        existing.ThreatLevel       = dto.ThreatLevel;
+        existing.GangId            = dto.GangId;
 
         await _context.SaveChangesAsync();
 
@@ -185,7 +197,7 @@ public class GraffitisController : ControllerBase
         return Ok(ToDto(existing));
     }
 
-    /// <summary>Deletes a graffiti record and its associated location.</summary>
+    /// <summary>Deletes a graffiti record, its associated location, and its image file if any.</summary>
     /// <param name="id">Graffiti record Id to delete.</param>
     /// <response code="204">Record deleted successfully.</response>
     /// <response code="404">Record not found.</response>
@@ -204,6 +216,18 @@ public class GraffitisController : ControllerBase
         // Removing the record also removes the dependent Location (EF Core cascade)
         _context.Graffitis.Remove(graffiti);
         await _context.SaveChangesAsync();
+
+        // Delete the physical image file from wwwroot if it exists
+        if (!string.IsNullOrEmpty(graffiti.ImagePath))
+        {
+            var physicalPath = Path.Combine(
+                Directory.GetCurrentDirectory(), "wwwroot",
+                graffiti.ImagePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+
+            if (System.IO.File.Exists(physicalPath))
+                System.IO.File.Delete(physicalPath);
+        }
+
         return NoContent();
     }
 }
