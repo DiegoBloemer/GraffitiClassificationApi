@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using GraffitiClassificationApi.Api.Data;
 using GraffitiClassificationApi.Api.DTOs;
 using GraffitiClassificationApi.Api.Models;
+using GraffitiClassificationApi.Api.Services;
 
 namespace GraffitiClassificationApi.Api.Controllers;
 
@@ -13,11 +14,18 @@ namespace GraffitiClassificationApi.Api.Controllers;
 public class GraffitisController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IStorageService _storageService;
 
-    public GraffitisController(AppDbContext context)
+    public GraffitisController(AppDbContext context, IStorageService storageService)
     {
         _context = context;
+        _storageService = storageService;
     }
+
+    private static readonly HashSet<string> _allowedImageExtensions =
+        new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+
+    private const long MaxImageSizeBytes = 10 * 1024 * 1024; // 10 MB
 
     // Maps a Graffiti entity to a flat response DTO, breaking any circular reference.
     private static GraffitiResponseDto ToDto(Graffiti g) => new()
@@ -99,28 +107,15 @@ public class GraffitisController : ControllerBase
 
         if (dto.Image is not null)
         {
-            // Build the absolute physical path to the destination folder inside wwwroot
-            var destFolder = Path.Combine(
-                Directory.GetCurrentDirectory(), "wwwroot", "images", "occurrences");
-
-            // Create the full directory hierarchy if it does not exist
-            Directory.CreateDirectory(destFolder);
-
-            // Preserve the original file extension (e.g. .jpg, .png)
             var extension = Path.GetExtension(dto.Image.FileName);
 
-            // Generate a unique file name to avoid collisions
-            var fileName    = $"{Guid.NewGuid()}{extension}";
-            var physicalPath = Path.Combine(destFolder, fileName);
+            if (!_allowedImageExtensions.Contains(extension))
+                return BadRequest(new { message = $"Extensão da imagem '{extension}' não é permitida. Permitidas: {string.Join(", ", _allowedImageExtensions)}." });
 
-            // Copy the IFormFile content to disk using a FileStream
-            using (var stream = new FileStream(physicalPath, FileMode.Create))
-            {
-                await dto.Image.CopyToAsync(stream);
-            }
-
-            // Relative path saved in the database and used by the front-end
-            imagePath = $"/images/occurrences/{fileName}";
+            if (dto.Image.Length > MaxImageSizeBytes)
+                return BadRequest(new { message = $"Imagem maior que o tamanho máximo: {MaxImageSizeBytes / (1024 * 1024)} MB." });
+            // Upload para MinIO
+            imagePath = await _storageService.UploadFileAsync(dto.Image, "occurrences");
         }
 
         var graffiti = new Graffiti
@@ -149,38 +144,89 @@ public class GraffitisController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = graffiti.Id }, ToDto(graffiti));
     }
 
-    /// <summary>Updates an existing graffiti record (does not update location).</summary>
+    /// <summary>Updates an existing graffiti record including location and optional image.</summary>
     /// <param name="id">Graffiti record Id to update.</param>
+    /// <param name="dto">Updated data including location fields.</param>
     /// <response code="200">Record updated.</response>
     /// <response code="400">Inconsistent Id, invalid data, or gang not found.</response>
     /// <response code="404">Record not found.</response>
     [HttpPut("{id}")]
+    [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(GraffitiResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Update(int id, [FromBody] Graffiti updated)
+    public async Task<IActionResult> Update(int id, [FromForm] GraffitiUpdateDto dto)
     {
-        if (id != updated.Id)
+        if (id != dto.Id)
             return BadRequest(new { message = "The URL Id does not match the request body Id." });
 
-        var existing = await _context.Graffitis.FindAsync(id);
+        if (!ModelState.IsValid)
+            return BadRequest(new { message = "Invalid data.", errors = ModelState });
+
+        // Load existing graffiti with location
+        var existing = await _context.Graffitis
+            .Include(g => g.Location)
+            .FirstOrDefaultAsync(g => g.Id == id);
+
         if (existing is null)
             return NotFound(new { message = $"Graffiti record with Id {id} not found." });
 
-        bool gangExists = await _context.Gangs.AnyAsync(g => g.Id == updated.GangId);
+        // Validate gang exists
+        bool gangExists = await _context.Gangs.AnyAsync(g => g.Id == dto.GangId);
         if (!gangExists)
-            return BadRequest(new { message = $"Gang with Id {updated.GangId} not found." });
+            return BadRequest(new { message = $"Gang with Id {dto.GangId} not found." });
 
-        existing.VisualDescription = updated.VisualDescription;
-        existing.ThreatLevel       = updated.ThreatLevel;
-        existing.GangId            = updated.GangId;
-        existing.RegisteredAt      = updated.RegisteredAt;
+        // Update Graffiti fields
+        existing.VisualDescription = dto.VisualDescription;
+        existing.ThreatLevel       = dto.ThreatLevel;
+        existing.GangId            = dto.GangId;
+        if (dto.Image is not null)
+        {
+            var extension = Path.GetExtension(dto.Image.FileName);
+
+            if (!_allowedImageExtensions.Contains(extension))
+                return BadRequest(new { message = $"Extensão da imagem '{extension}' não é permitida. Permitidas: {string.Join(", ", _allowedImageExtensions)}." });
+
+            if (dto.Image.Length > MaxImageSizeBytes)
+                return BadRequest(new { message = $"Imagem maior que o tamanho máximo: {MaxImageSizeBytes / (1024 * 1024)} MB." });
+
+            if (!string.IsNullOrEmpty(existing.ImagePath))
+            {
+                await _storageService.DeleteFileAsync(existing.ImagePath);
+            }
+
+            existing.ImagePath = await _storageService.UploadFileAsync(dto.Image, "occurrences");
+        }
+
+        // Update Location fields
+        if (existing.Location is not null)
+        {
+            existing.Location.Street       = dto.Street;
+            existing.Location.Neighborhood = dto.Neighborhood;
+            existing.Location.City         = dto.City;
+            existing.Location.State        = dto.State;
+            existing.Location.Lat          = dto.Lat;
+            existing.Location.Lon          = dto.Lon;
+        }
+        else
+        {
+            // If location doesn't exist (shouldn't happen), create it
+            existing.Location = new GraffitiLocation
+            {
+                Street       = dto.Street,
+                Neighborhood = dto.Neighborhood,
+                City         = dto.City,
+                State        = dto.State,
+                Lat          = dto.Lat,
+                Lon          = dto.Lon,
+                GraffitiId   = existing.Id
+            };
+        }
 
         await _context.SaveChangesAsync();
 
-        // Reload related entities to build the full response DTO
+        // Reload Gang for response
         await _context.Entry(existing).Reference(g => g.Gang).LoadAsync();
-        await _context.Entry(existing).Reference(g => g.Location).LoadAsync();
 
         return Ok(ToDto(existing));
     }
@@ -200,6 +246,12 @@ public class GraffitisController : ControllerBase
 
         if (graffiti is null)
             return NotFound(new { message = $"Graffiti record with Id {id} not found." });
+
+        // Excluir imagem do MinIO se existir
+        if (!string.IsNullOrEmpty(graffiti.ImagePath))
+        {
+            await _storageService.DeleteFileAsync(graffiti.ImagePath);
+        }
 
         // Removing the record also removes the dependent Location (EF Core cascade)
         _context.Graffitis.Remove(graffiti);

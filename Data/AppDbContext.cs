@@ -18,9 +18,9 @@ public class AppDbContext : DbContext
         {
             e.ToTable("gangs");
             e.Property(g => g.Id).HasColumnName("id");
-            e.Property(g => g.Name).HasColumnName("name");
-            e.Property(g => g.Acronym).HasColumnName("acronym");
-            e.Property(g => g.Origin).HasColumnName("origin");
+            e.Property(g => g.Name).HasColumnName("name").HasColumnType("varchar(100)");
+            e.Property(g => g.Acronym).HasColumnName("acronym").HasColumnType("varchar(10)");
+            e.Property(g => g.Origin).HasColumnName("origin").HasColumnType("varchar(2)");
         });
 
         // --- Table: graffitis (entity Graffiti) ---
@@ -29,10 +29,10 @@ public class AppDbContext : DbContext
             e.ToTable("graffitis");
             e.Property(g => g.Id).HasColumnName("id");
             e.Property(g => g.RegisteredAt).HasColumnName("registered_at");
-            e.Property(g => g.VisualDescription).HasColumnName("visual_description");
-            e.Property(g => g.ThreatLevel).HasColumnName("threat_level");
+            e.Property(g => g.VisualDescription).HasColumnName("visual_description").HasColumnType("text");
+            e.Property(g => g.ThreatLevel).HasColumnName("threat_level").HasColumnType("varchar(10)");
             e.Property(g => g.GangId).HasColumnName("gang_id");
-            e.Property(g => g.ImagePath).HasColumnName("image_path");
+            e.Property(g => g.ImagePath).HasColumnName("image_path").HasColumnType("text");
 
             // 1:N — DeleteBehavior.Restrict prevents deleting a gang that has graffitis
             e.HasOne(g => g.Gang)
@@ -46,10 +46,10 @@ public class AppDbContext : DbContext
         {
             e.ToTable("graffitis_location");
             e.Property(l => l.Id).HasColumnName("id");
-            e.Property(l => l.Street).HasColumnName("street");
-            e.Property(l => l.Neighborhood).HasColumnName("neighborhood");
-            e.Property(l => l.City).HasColumnName("city");
-            e.Property(l => l.State).HasColumnName("state");
+            e.Property(l => l.Street).HasColumnName("street").HasColumnType("varchar(150)");
+            e.Property(l => l.Neighborhood).HasColumnName("neighborhood").HasColumnType("varchar(100)");
+            e.Property(l => l.City).HasColumnName("city").HasColumnType("varchar(100)");
+            e.Property(l => l.State).HasColumnName("state").HasColumnType("varchar(2)");
             e.Property(l => l.Lat).HasColumnName("lat");
             e.Property(l => l.Lon).HasColumnName("lon");
             e.Property(l => l.GraffitiId).HasColumnName("graffiti_id");
