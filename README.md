@@ -39,11 +39,13 @@ Sistema backend desenvolvido em .NET 8 para gerenciamento de ocorrências de pic
 
 ### Gestão de Pichações
 - ✅ CRUD completo de pichações
-- ✅ Upload de imagens para MinIO (JPEG, PNG, WebP)
+- ✅ Upload de imagens para MinIO (JPEG, PNG, GIF, WebP)
+- ✅ Validação de extensão e tamanho de imagem (até 10 MB)
 - ✅ Classificação por nível de ameaça (Low, Medium, High)
 - ✅ Registro de localização geográfica (endereço + coordenadas)
 - ✅ Vinculação obrigatória a facção
 - ✅ Data de registro automática (UTC)
+- ✅ Atualização completa via JSON (inclui endereço e data de registro)
 - ✅ Exclusão em cascata de localização
 - ✅ Exclusão automática de imagem do MinIO
 
@@ -63,7 +65,7 @@ Sistema backend desenvolvido em .NET 8 para gerenciamento de ocorrências de pic
 - ✅ DTOs para evitar referências circulares
 - ✅ Eager loading de relacionamentos
 - ✅ Validação de modelo com Data Annotations
-- ✅ CORS configurado para desenvolvimento
+- ✅ CORS configurado por ambiente (AllowedOrigins fora de Development)
 - ✅ Service Layer para lógica de negócio
 - ✅ Dependency Injection nativa do .NET
 
@@ -105,6 +107,7 @@ GraffitiClassificationApi/
 │   └── GraffitiLocation.cs  # Entidade Localização
 ├── DTOs/                     # Data Transfer Objects
 │   ├── GraffitiCreateDto.cs # DTO para criação
+│   ├── GraffitiUpdateDto.cs # DTO para atualização
 │   ├── GraffitiResponseDto.cs # DTO para resposta
 │   ├── DashboardSummaryDto.cs # DTO para resumo
 │   ├── ChartDataDto.cs      # DTO para gráficos simples
@@ -217,6 +220,26 @@ curl -X POST "http://localhost:5219/api/graffitis" \
   -F "image=@/path/to/image.jpg"
 ```
 
+### Exemplo: Atualizar Pichação (JSON)
+
+```bash
+curl -X PUT "http://localhost:5219/api/graffitis/1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": 1,
+    "visualDescription": "Pichação atualizada",
+    "threatLevel": "Medium",
+    "gangId": 1,
+    "registeredAt": "2026-05-31T10:30:00Z",
+    "street": "Rua das Flores, 123",
+    "neighborhood": "Centro",
+    "city": "Florianópolis",
+    "state": "SC",
+    "lat": -27.5954,
+    "lon": -48.5480
+  }'
+```
+
 ## 📡 API Endpoints
 
 ### Facções (Gangs)
@@ -230,6 +253,8 @@ curl -X POST "http://localhost:5219/api/graffitis" \
 | DELETE | `/api/gangs/{id}` | Exclui facção | 204, 404, 409 |
 
 ### Pichações (Graffitis)
+
+**POST** usa `multipart/form-data` (suporta upload opcional de imagem). **PUT** usa JSON.
 
 | Método | Endpoint | Descrição | Status |
 |--------|----------|-----------|--------|
@@ -334,6 +359,13 @@ dotnet ef migrations remove
 
 ```json
 {
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
   "ConnectionStrings": {
     "DefaultConnection": "Host=localhost;Port=5432;Database=grafiti_classification_db;Username=postgres;Password=postgres123"
   },
@@ -343,12 +375,6 @@ dotnet ef migrations remove
     "SecretKey": "minioadmin123",
     "BucketName": "graffiti-images",
     "UseSSL": false
-  },
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
   }
 }
 ```
@@ -366,14 +392,19 @@ docker-compose up -d
 
 ### CORS
 
-Atualmente configurado para permitir qualquer origem (desenvolvimento):
+Em `Development`, permite qualquer origem. Em outros ambientes, tenta ler `AllowedOrigins` do appsettings:
 ```csharp
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("PermitirTudo", policy =>
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader());
+  {
+    var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>();
+
+    if (builder.Environment.IsDevelopment() || allowedOrigins is null || allowedOrigins.Length == 0)
+      policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+    else
+      policy.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader();
+  });
 });
 ```
 
@@ -397,6 +428,7 @@ Veja exemplos na seção [Uso](#-uso).
 - ✅ Validação de modelo
 - ✅ Proteção contra SQL Injection (EF Core)
 - ✅ CORS configurado
+- ✅ Validação de extensão e tamanho de upload
 
 ### Recomendações para Produção
 - 🔒 Implementar autenticação JWT

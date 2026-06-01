@@ -1,0 +1,29 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GraffitiClassificationApi", "GraffitiClassificationApi", "{360FB590-5CB0-50A8-9E65-16F8974830F5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GraffitiClassificationApi", "GraffitiClassificationApi\GraffitiClassificationApi\GraffitiClassificationApi.csproj", "{CA8C843E-3996-9182-00B5-DB87ED17925C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CA8C843E-3996-9182-00B5-DB87ED17925C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA8C843E-3996-9182-00B5-DB87ED17925C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA8C843E-3996-9182-00B5-DB87ED17925C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA8C843E-3996-9182-00B5-DB87ED17925C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{CA8C843E-3996-9182-00B5-DB87ED17925C} = {360FB590-5CB0-50A8-9E65-16F8974830F5}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {73C34E2A-C6F9-4D7F-96B1-6773F2948DEE}
+	EndGlobalSection
+EndGlobal

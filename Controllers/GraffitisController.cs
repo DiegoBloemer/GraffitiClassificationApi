@@ -22,6 +22,11 @@ public class GraffitisController : ControllerBase
         _storageService = storageService;
     }
 
+    private static readonly HashSet<string> _allowedImageExtensions =
+        new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+
+    private const long MaxImageSizeBytes = 10 * 1024 * 1024; // 10 MB
+
     // Maps a Graffiti entity to a flat response DTO, breaking any circular reference.
     private static GraffitiResponseDto ToDto(Graffiti g) => new()
     {
@@ -102,6 +107,13 @@ public class GraffitisController : ControllerBase
 
         if (dto.Image is not null)
         {
+            var extension = Path.GetExtension(dto.Image.FileName);
+
+            if (!_allowedImageExtensions.Contains(extension))
+                return BadRequest(new { message = $"Extensão da imagem '{extension}' não é permitida. Permitidas: {string.Join(", ", _allowedImageExtensions)}." });
+
+            if (dto.Image.Length > MaxImageSizeBytes)
+                return BadRequest(new { message = $"Imagem maior que o tamanho máximo: {MaxImageSizeBytes / (1024 * 1024)} MB." });
             // Upload para MinIO
             imagePath = await _storageService.UploadFileAsync(dto.Image, "occurrences");
         }
@@ -132,17 +144,18 @@ public class GraffitisController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = graffiti.Id }, ToDto(graffiti));
     }
 
-    /// <summary>Updates an existing graffiti record including location.</summary>
+    /// <summary>Updates an existing graffiti record including location and optional image.</summary>
     /// <param name="id">Graffiti record Id to update.</param>
     /// <param name="dto">Updated data including location fields.</param>
     /// <response code="200">Record updated.</response>
     /// <response code="400">Inconsistent Id, invalid data, or gang not found.</response>
     /// <response code="404">Record not found.</response>
     [HttpPut("{id}")]
+    [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(GraffitiResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Update(int id, [FromBody] GraffitiUpdateDto dto)
+    public async Task<IActionResult> Update(int id, [FromForm] GraffitiUpdateDto dto)
     {
         if (id != dto.Id)
             return BadRequest(new { message = "The URL Id does not match the request body Id." });
@@ -167,7 +180,23 @@ public class GraffitisController : ControllerBase
         existing.VisualDescription = dto.VisualDescription;
         existing.ThreatLevel       = dto.ThreatLevel;
         existing.GangId            = dto.GangId;
-        existing.RegisteredAt      = dto.RegisteredAt;
+        if (dto.Image is not null)
+        {
+            var extension = Path.GetExtension(dto.Image.FileName);
+
+            if (!_allowedImageExtensions.Contains(extension))
+                return BadRequest(new { message = $"Extensão da imagem '{extension}' não é permitida. Permitidas: {string.Join(", ", _allowedImageExtensions)}." });
+
+            if (dto.Image.Length > MaxImageSizeBytes)
+                return BadRequest(new { message = $"Imagem maior que o tamanho máximo: {MaxImageSizeBytes / (1024 * 1024)} MB." });
+
+            if (!string.IsNullOrEmpty(existing.ImagePath))
+            {
+                await _storageService.DeleteFileAsync(existing.ImagePath);
+            }
+
+            existing.ImagePath = await _storageService.UploadFileAsync(dto.Image, "occurrences");
+        }
 
         // Update Location fields
         if (existing.Location is not null)

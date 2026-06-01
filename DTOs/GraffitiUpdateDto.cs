@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http; // Adicione este using para o IFormFile
 
 namespace GraffitiClassificationApi.Api.DTOs;
 
@@ -24,6 +25,9 @@ public class GraffitiUpdateDto
     [Required]
     public DateTime RegisteredAt { get; set; }
 
+    // --- Nova propriedade para a Imagem ---
+    public IFormFile? Image { get; set; }
+
     // --- Location fields (to update the address) ---
 
     [Required]
@@ -39,10 +43,10 @@ public class GraffitiUpdateDto
     public string State { get; set; } = string.Empty;
 
     [Required]
-    [Range(-90, 90, ErrorMessage = "Latitude must be between -90 and 90")]
+    [Range(-90, 90, ErrorMessage = "Latitude deve ter um valor entre -90 e 90")]
     public double Lat { get; set; }
 
     [Required]
-    [Range(-180, 180, ErrorMessage = "Longitude must be between -180 and 180")]
+    [Range(-180, 180, ErrorMessage = "Longitude deve ter um valor entre -180 e 180")]
     public double Lon { get; set; }
 }
